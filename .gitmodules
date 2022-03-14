@@ -1,0 +1,9 @@
+[submodule "lib/lua-matrix"]
+	path = lib/lua-matrix
+	url = git@github.com:Pascal-So/lua-matrix.git
+[submodule "lib/lua-vector"]
+	path = lib/lua-vector
+	url = git@github.com:Luke100000/luaVectors.git
+[submodule "lib/OBJ-Loader"]
+	path = lib/OBJ-Loader
+	url = git@github.com:kenetec/OBJ-Loader.git
