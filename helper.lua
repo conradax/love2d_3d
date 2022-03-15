@@ -160,15 +160,13 @@ end
 
 function HomogeneousDivision(p)
     assert(#p==4,"not a homogeneous coord")
-    local ret = MTX{
+    assert(p[4][1] ~= 0, DeepPrint(p))
+    return MTX{
         {p[1][1]/p[4][1]},
         {p[2][1]/p[4][1]},
         {p[3][1]/p[4][1]},
         {1},--{p[4][1]/p[4][1]}
     }
-    if p[4][1] == 0 then error(DeepPrint(p)) end
-    --error(DeepPrint(ret))
-    return ret
 end
 
 -- 1x4 matrix (homogeneous coord)
@@ -181,7 +179,8 @@ function P(x,y,z)
 end
 
 function DeepPrint (e, indent)
-    local ret = '\n'
+    if type(e) == 'number' then return indent..tostring(e) end
+    local ret = ''
     indent = indent or ''
     --print(indent.."==========start")
     -- if e is a table, we should iterate over its elements
@@ -199,3 +198,18 @@ function DeepPrint (e, indent)
     return ret
 end
 
+
+function deepcopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[deepcopy(orig_key)] = deepcopy(orig_value)
+        end
+        setmetatable(copy, deepcopy(getmetatable(orig)))
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end

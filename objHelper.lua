@@ -37,14 +37,15 @@ function OBJHelper._process(self)
     --error(DeepPrint(self.Faces))
 end
 
--- return a table contains faces' vertex position (nested teble)
+-- return a table contains faces' vertex position (nested table)
 function OBJHelper.getFaces(self)
     return self.Faces
+    --return deepcopy(self.Faces)
 end
 
 --rotation: VEC3(rotX, rotY, rotZ)
 function OBJHelper.SetRotation(self,rotation)
     self.Rotation = rotation
-    self.Matrix_Model2World = MTX_Model2World(self.Position,self.Rotation) 
+    self.Matrix_Model2World = MTX_Model2World(self.Position,self.Rotation)
 end
 return OBJHelper
