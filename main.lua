@@ -1,6 +1,7 @@
 require("MTXhelper")
 
 OH = require("OBJHelper")
+Draw = require("DrawHelper")
 
 function MTX_MVP(model2world,cameraInfo)
     local mtx_model2world = model2world--MTX_Model2World(VEC3(0,0,10),VEC3(0,0,0))
@@ -14,7 +15,7 @@ end
 
 function Init()
     ScreenW, ScreenH = love.window.getMode()
-    Clip2Screen = MTX_Clip2Screen(ScreenW,ScreenH)
+    Clip2Screen = MTX_Clip2Screen(ScreenW/4,ScreenH/4)
     CAMERA = {
         position = VEC3(0,0,-50),
         rotation = VEC3(0,0,0),
@@ -32,26 +33,53 @@ function love.load()
 
     local modelPath = "testCube.obj"--"KANADE.OBJ"-- 
     MODEL = OH:loadOBJ(modelPath)
+
+    CANVAS = Draw:new(3)
 end
 
 function love.update(dt)
     HandleInput(dt*10)
+
+    MODEL:SetRotation(MODEL.Rotation+VEC3(PI * dt /9,PI * dt /9,PI * dt /9))
+    local mvp = MTX_MVP(MODEL.Matrix_Model2World,CAMERA)
+
+    CANVAS:BeginDraw()
+    for k,face in ipairs(MODEL:getFaces()) do
+        local verts = CalcFace(face,mvp)
+        if verts ~= nil then
+            local tris = love.math.triangulate(verts)
+            print(DeepPrint(tris))
+            for _,tri in ipairs(tris) do
+                    CANVAS:DrawTriangle(VEC2(tri[1],tri[2]),VEC2(tri[3],tri[4]),VEC2(tri[5],tri[6]))
+            end
+        end
+    end
+    CANVAS:EndDraw()
+
 end
 
 function love.draw()
+    
+
+    --draw canvas out
+    local canvas = CANVAS.canvas
     love.graphics.setColor(1,1,1,1)
+    love.graphics.draw(canvas,ScreenW/4,ScreenH/4)
+    
+    love.graphics.rectangle('line',ScreenW/4,ScreenH/4,ScreenW/2,ScreenH/2)
+    --old drawing code using LOVE's graphics api
+        -- local dt = love.timer.getDelta()
+        -- 
+        -- DrawAxis(mtx_MVP)
+
+        -- local faces = MODEL:getFaces()
+        -- love.graphics.setColor(1,1,1,1)
+        -- for k,face in ipairs(faces) do
+        --     DrawFace(face,mtx_MVP)
+        -- end
+    ------------------------
+
     PrintDebugText()
-
-    local dt = love.timer.getDelta()
-    MODEL:SetRotation(MODEL.Rotation+VEC3(PI * dt /9,PI * dt /9,PI * dt /9))
-    local mtx_MVP = MTX_MVP(MODEL.Matrix_Model2World,CAMERA)
-    DrawAxis(mtx_MVP)
-
-    local faces = MODEL:getFaces()
-    love.graphics.setColor(1,1,1,1)
-    for k,face in ipairs(faces) do
-        DrawFace(face,mtx_MVP)
-    end
 end
 
 local f = .03
@@ -59,7 +87,7 @@ local f = .03
 -- https://love2d.org/wiki/Scancode
 local _keys = {
     a = function(dt) CAMERA.position = CAMERA.position + VEC3(-1,0,0)*dt end,
-    d = function(dt) CAMERA.position = CAMERA.position + VEC3(1,0,1)*dt end,
+    d = function(dt) CAMERA.position = CAMERA.position + VEC3(1,0,0)*dt end,
     w = function(dt) CAMERA.position = CAMERA.position + VEC3(0,0,1)*dt end,
     s = function(dt) CAMERA.position = CAMERA.position + VEC3(0,0,-1)*dt end,
     p = function(dt) end,
