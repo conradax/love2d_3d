@@ -31,6 +31,10 @@ local getBoundingBox = function(p1,p2,p3)
     return xMin,yMin,xMax-xMin,yMax-yMin
 end
 
+local lerp = function()
+
+end
+
 function DrawHelper.new(self, blockSize)
     local o = setmetatable({},Meta)
     o:SetDimension(screenW,screenH)
@@ -111,7 +115,6 @@ end
 
 function DrawHelper.DrawTriangle(self,p1,p2,p3,color)
     local bx,by,bw,bh = getBoundingBox(p1,p2,p3)
-
 
     for x=bx,bx+bw do
         for y=by,by+bh do

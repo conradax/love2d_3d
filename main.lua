@@ -31,10 +31,11 @@ end
 
 
 function love.load()
-    local modelPath = "testCube.obj"--"KANADE.OBJ"-- 
+    -- must be a triangulated mesh
+    local modelPath = "testCube2.obj"--"KANADE.OBJ"-- 
     MODEL = OH:loadOBJ(modelPath)
 
-    CANVAS = Draw:new(2)
+    CANVAS = Draw:new(3)
     Init(CANVAS.Width, CANVAS.Height)
 end
 
@@ -46,25 +47,24 @@ function love.update(dt)
     local mvp = MTX_MVP(MODEL.Matrix_Model2World,CAMERA)
 
     CANVAS:BeginDraw()
-    for k,face in ipairs(MODEL:getFaces()) do
-        local verts = CalcFace(face,mvp)
+    local objData = MODEL.OBJData
+    local objVerts = MODEL.OBJData.vertices
+    for _,face in ipairs(objData.faces) do
+        --error(DeepPrint(face))
+        local faceVertIndex = {}
+        local faceUVIndex = {}
+        local faceNormalIndex = {}
+        for _,data in ipairs(face.data) do
+            faceVertIndex[#faceVertIndex+1] = data.vertex_index
+            faceUVIndex[#faceUVIndex+1] = data.uv_index
+            faceNormalIndex[#faceNormalIndex+1] = data.normal_index
+        end
+        
+        local verts = {objVerts[faceVertIndex[1]],objVerts[faceVertIndex[2]],objVerts[faceVertIndex[3]]}
+        verts = CalcFace(verts,mvp)
         if verts ~= nil then
-            local tris = love.math.triangulate(verts)
-            print(DeepPrint(tris))
-            for _,tri in ipairs(tris) do
-                    --CANVAS:DrawTriangle(VEC2(tri[1],tri[2]),VEC2(tri[3],tri[4]),VEC2(tri[5],tri[6]))
-                    --CANVAS:DrawLine(VEC2(CANVAS.Width/2,CANVAS.Height/2),VEC2(0,0))
-                    local p1,p2,p3 = VEC2(tri[1],tri[2]),VEC2(tri[3],tri[4]),VEC2(tri[5],tri[6])
-                    CANVAS:DrawLine(p1,p2)
-                    CANVAS:DrawLine(p2,p3)
-                    CANVAS:DrawLine(p3,p1)
-            end
-            -- local p1 = VEC2(60,10)
-            -- local p2 = VEC2(80,60)
-            -- CANVAS:DrawLine(p2,p1)
-            -- CANVAS:SetPixel(p1.x,p1.y,{1,0,0,1})
-            -- CANVAS:SetPixel(p2.x,p2.y,{1,0,0,1})
-            DrawAxis(mvp)
+            local p1,p2,p3 = verts[1],verts[2],verts[3]
+            CANVAS:DrawTriangle(p1,p2,p3,{1,1,1,1})
         end
     end
     CANVAS:EndDraw()
@@ -95,7 +95,6 @@ function love.draw()
     PrintDebugText()
 end
 
-local f = .03
 -- { scancode = function }
 -- https://love2d.org/wiki/Scancode
 local _keys = {
@@ -103,16 +102,25 @@ local _keys = {
     d = function(dt) CAMERA.position = CAMERA.position + VEC3(1,0,0)*dt end,
     w = function(dt) CAMERA.position = CAMERA.position + VEC3(0,0,1)*dt end,
     s = function(dt) CAMERA.position = CAMERA.position + VEC3(0,0,-1)*dt end,
-    p = function(dt) end,
-    right=function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(0,-PI*f,0)) end,
-    left = function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(0,PI*f,0)) end,
-    up = function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(PI*f,0,0)) end,
-    down = function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(-PI*f,0,0)) end
+    --p = function(dt) end,
+    right=function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(0,-PI*dt,0)) end,
+    left = function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(0,PI*dt,0)) end,
+    up = function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(PI*dt,0,0)) end,
+    down = function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(-PI*dt,0,0)) end
 }
 function HandleInput(dt)
     for key,fn in pairs(_keys) do
         if  love.keyboard.isScancodeDown(key) then
             fn(dt)
+        end
+    end
+end
+function love.keyreleased(key)
+    if 'p' == key then
+        if 'persp' == CAMERA.type then
+            CAMERA.type = 'ortho'
+        else
+            CAMERA.type = 'persp'
         end
     end
 end
@@ -148,33 +156,29 @@ function DrawFace(model_space_face,mvp)
     end
 end
 
+-- returns nil if any vertex clipped
 function CalcFace(model_space_face,mvp)
     local verts = {}
-    local smallestZ = 999
-    local tempZ = 999
     for k,vertex in ipairs(model_space_face) do
-        verts[k],tempZ = Model2Screen(vertex,mvp)
+        verts[k] = Model2Screen(vertex,mvp)
         if verts[k] == nil then return end --vertex clipped
-        if tempZ < smallestZ then smallestZ = tempZ end
     end
-    verts = FlatTable2(verts)
-    --love.graphics.polygon("fill",verts)
-    return verts,smallestZ
+    return verts
 end
 
 
 --convert Model Space Coord to Screen Space
 --return: table(x,y), z
 function Model2Screen(vert,mvp)
-    local clip_space_p = HomogeneousDivision(mvp * P(vert))
+    local clip_space_p = HomogeneousDivision(mvp * P(vert.x,vert.y,vert.z))
     if clip_space_p ~= nil then
         if clip_space_p[3][1] <-1.01 or clip_space_p[3][1]>1.01 then --clipping
             print("vertex clipped\n"..DeepPrint(clip_space_p))
             return
-        end 
+        end
     end
     clip_space_p = Clip2Screen * clip_space_p --screen space
-    return {clip_space_p[1][1], clip_space_p[2][1]},clip_space_p[3][1]
+    return VEC3(clip_space_p[1][1], clip_space_p[2][1],clip_space_p[3][1])
 end
 
 --model space

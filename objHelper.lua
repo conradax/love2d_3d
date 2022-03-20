@@ -34,7 +34,22 @@ function OBJHelper._process(self)
         end
         self.Faces[k] = face_to_save
     end
-    --error(DeepPrint(self.Faces))
+
+
+    -- local objData = self.OBJData
+    -- local objVerts = self.OBJData.vertices
+    -- self.Verts = objData.vertices
+    -- local faceData = {}
+    -- for _,face in ipairs(objData.faces) do
+    --     local vert_index = {}
+    --     local uv_index = {}
+    --     local normal_index = {}
+    --     for _,data in ipairs(face.data) do
+    --         vertIndex[#vertIndex+1] = data.vertex_index
+    --         UVIndex[#UVIndex+1] = data.uv_index
+    --         normalIndex[#normalIndex+1] = data.normal_index
+    --     end
+    -- end
 end
 
 -- return a table contains faces' vertex position (nested table)
