@@ -33,10 +33,10 @@ end
 
 function DrawHelper.new(self, blockSize)
     local o = setmetatable({},Meta)
-    o:SetDimension(screenW/2,screenH/2)
+    o:SetDimension(screenW,screenH)
     o.BlockSize = blockSize
-    o.Width = math.ceil(screenW/blockSize/2)
-    o.Height = math.ceil(screenW/blockSize/2)
+    o.Width = math.ceil(screenW/blockSize)
+    o.Height = math.ceil(screenH/blockSize)
     
     return o
 end
@@ -53,24 +53,47 @@ end
 
 --set color at x,y
 function DrawHelper.SetPixel(self, grid_x, grid_y,color)
+    PixelRate = PixelRate + 1
     -- x,y : left-up corner of the target block
-    local padding = self.BlockSize*.2
+    local padding = 0--self.BlockSize*.2
     local wh = self.BlockSize - 2 * padding
     local x = (grid_x-1) * self.BlockSize+padding
     local y = (grid_y-1) * self.BlockSize+padding
 
-    
     love.graphics.setColor(color[1],color[2],color[3],color[4] or 1)
     love.graphics.rectangle('fill',x,y,wh,wh)
 end
 
 --get color at x,y
-function DrawHelper.GetPixel(x,y)
+function DrawHelper.GetPixel(self,x,y)
     return error("not implemented yet")
 end
 
-function DrawHelper.DrawLine(p1,p2,width)
-    return error("not implemented yet")
+function DrawHelper.DrawLine(self,p1,p2,color)
+    color = color or {1,1,1,1}
+    if p1.x>p2.x then p1,p2 = p2,p1 end -- p2.x must bigger then p1.x
+    local kx = (p2.y-p1.y)/(p2.x-p1.x)
+    --print("drawLine kx= "..kx)
+    for x=p1.x,p2.x do
+            local xx = x--+p1.x
+            local yy = p1.y+(xx-p1.x)*kx--p1.y+x*d.y
+            --print("drawLine "..xx..','..yy)
+            self:SetPixel(xx,yy,color)
+    end
+
+    if p1.y > p2.y then p1,p2 = p2,p1 end -- p2.y must be bigger then p1.y
+    local ky = (p2.x-p1.x)/(p2.y-p1.y)
+    --print("drawLine ky= "..ky)
+    for y=p1.y,p2.y do
+        local yy = y
+        local xx = p1.x + (yy-p1.y)*ky
+        --print("drawLine "..xx..','..yy)
+        self:SetPixel(xx,yy,color)
+end
+end
+
+function DrawHelper.DrawLine3D(p1,p2,color)
+
 end
 function DrawHelper.DrawPolygon(color,...)
     -- how to deal with UV NORMAL?

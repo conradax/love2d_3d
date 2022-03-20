@@ -3,6 +3,8 @@ require("MTXhelper")
 OH = require("OBJHelper")
 Draw = require("DrawHelper")
 
+PixelRate = 0
+
 function MTX_MVP(model2world,cameraInfo)
     local mtx_model2world = model2world--MTX_Model2World(VEC3(0,0,10),VEC3(0,0,0))
     local mtx_world2view = MTX_World2View(cameraInfo)
@@ -13,31 +15,31 @@ function MTX_MVP(model2world,cameraInfo)
     return mvp
 end
 
-function Init()
-    ScreenW, ScreenH = love.window.getMode()
-    Clip2Screen = MTX_Clip2Screen(ScreenW/4,ScreenH/4)
+function Init(screenW, screenH)
+    --ScreenW, ScreenH = love.window.getMode()
+    Clip2Screen = MTX_Clip2Screen(screenW,screenH)
     CAMERA = {
         position = VEC3(0,0,-50),
         rotation = VEC3(0,0,0),
         type = 'persp',--'ortho',
         near = 20,
         far = 170,
-        aspect = ScreenW/ScreenH, --near plane's width / height
-        fovY = PI/4
+        aspect = screenW/screenH, --near plane's width / height
+        fovY = PI/8
     }
 end
 
 
 function love.load()
-    Init()
-
     local modelPath = "testCube.obj"--"KANADE.OBJ"-- 
     MODEL = OH:loadOBJ(modelPath)
 
-    CANVAS = Draw:new(3)
+    CANVAS = Draw:new(2)
+    Init(CANVAS.Width, CANVAS.Height)
 end
 
 function love.update(dt)
+    PixelRate = 0
     HandleInput(dt*10)
 
     MODEL:SetRotation(MODEL.Rotation+VEC3(PI * dt /9,PI * dt /9,PI * dt /9))
@@ -50,8 +52,19 @@ function love.update(dt)
             local tris = love.math.triangulate(verts)
             print(DeepPrint(tris))
             for _,tri in ipairs(tris) do
-                    CANVAS:DrawTriangle(VEC2(tri[1],tri[2]),VEC2(tri[3],tri[4]),VEC2(tri[5],tri[6]))
+                    --CANVAS:DrawTriangle(VEC2(tri[1],tri[2]),VEC2(tri[3],tri[4]),VEC2(tri[5],tri[6]))
+                    --CANVAS:DrawLine(VEC2(CANVAS.Width/2,CANVAS.Height/2),VEC2(0,0))
+                    local p1,p2,p3 = VEC2(tri[1],tri[2]),VEC2(tri[3],tri[4]),VEC2(tri[5],tri[6])
+                    CANVAS:DrawLine(p1,p2)
+                    CANVAS:DrawLine(p2,p3)
+                    CANVAS:DrawLine(p3,p1)
             end
+            -- local p1 = VEC2(60,10)
+            -- local p2 = VEC2(80,60)
+            -- CANVAS:DrawLine(p2,p1)
+            -- CANVAS:SetPixel(p1.x,p1.y,{1,0,0,1})
+            -- CANVAS:SetPixel(p2.x,p2.y,{1,0,0,1})
+            DrawAxis(mvp)
         end
     end
     CANVAS:EndDraw()
@@ -64,12 +77,12 @@ function love.draw()
     --draw canvas out
     local canvas = CANVAS.canvas
     love.graphics.setColor(1,1,1,1)
-    love.graphics.draw(canvas,ScreenW/4,ScreenH/4)
+    love.graphics.draw(canvas,0,0)--ScreenW/4,ScreenH/4)
     
-    love.graphics.rectangle('line',ScreenW/4,ScreenH/4,ScreenW/2,ScreenH/2)
+    --love.graphics.rectangle('line',ScreenW/4,ScreenH/4,ScreenW/2,ScreenH/2)
     --old drawing code using LOVE's graphics api
         -- local dt = love.timer.getDelta()
-        -- 
+        -- local mtx_MVP = MTX_MVP(MODEL.Matrix_Model2World,CAMERA)
         -- DrawAxis(mtx_MVP)
 
         -- local faces = MODEL:getFaces()
@@ -118,9 +131,10 @@ end
 
 function PrintDebugText()
     local debug_text = string.format(
-        "FPS: %d\nCamera Info:\n%s",
+        "FPS: %d\nCamera Info:\n%s\nPixelRate: %d",
         1/love.timer.getDelta(),
-        DeepPrint(CAMERA,'|  '))
+        DeepPrint(CAMERA,'|  '),
+        PixelRate)
 
         love.graphics.print(debug_text)
 end
@@ -174,18 +188,27 @@ end
 
 function DrawAxis(mvp)
     --x
-    love.graphics.setColor(1,0,0,1)
-    DrawLine(VEC3(-1,0,0),VEC3(1,0,0),mvp)
-    DrawLine(VEC3(1,0,0),VEC3(.9,0,.1),mvp)
-    DrawLine(VEC3(1,0,0),VEC3(.9,0,-.1),mvp)
+    -- love.graphics.setColor(1,0,0,1)
+    -- DrawLine(VEC3(-1,0,0),VEC3(1,0,0),mvp)
+    -- DrawLine(VEC3(1,0,0),VEC3(.9,0,.1),mvp)
+    -- DrawLine(VEC3(1,0,0),VEC3(.9,0,-.1),mvp)
+    local x1 = Model2Screen(VEC3(-1,0,0),mvp)
+    local x2 = Model2Screen(VEC3(1,0,0),mvp)
+    
+    if (x1 ~= nil) and (x2 ~= nil) then
+        x1 = VEC2(x1[1],x1[2])
+        x2 = VEC2(x2[1],x2[2])
+        CANVAS:DrawLine(x1,x2,{1,0,0,1})
+    end
+    
     --y
-    love.graphics.setColor(0,1,0,1)
-    DrawLine(VEC3(0,-1,0),VEC3(0,1,0),mvp)
-    DrawLine(VEC3(0,1,0),VEC3(.1,.9,0),mvp)
-    DrawLine(VEC3(0,1,0),VEC3(-.1,.9,0),mvp)
+    -- love.graphics.setColor(0,1,0,1)
+    -- DrawLine(VEC3(0,-1,0),VEC3(0,1,0),mvp)
+    -- DrawLine(VEC3(0,1,0),VEC3(.1,.9,0),mvp)
+    -- DrawLine(VEC3(0,1,0),VEC3(-.1,.9,0),mvp)
     --z
-    love.graphics.setColor(0,0,1,1)
-    DrawLine(VEC3(0,0,-1),VEC3(0,0,1),mvp)
-    DrawLine(VEC3(0,0,1),VEC3(.1,0,.9),mvp)
-    DrawLine(VEC3(0,0,1),VEC3(-.1,0,.9),mvp)
+    -- love.graphics.setColor(0,0,1,1)
+    -- DrawLine(VEC3(0,0,-1),VEC3(0,0,1),mvp)
+    -- DrawLine(VEC3(0,0,1),VEC3(.1,0,.9),mvp)
+    -- DrawLine(VEC3(0,0,1),VEC3(-.1,0,.9),mvp)
 end
