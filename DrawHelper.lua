@@ -22,6 +22,18 @@ local isInTriangle = function(p,p1,p2,p3)
     return cross(pp1,a) and cross(pp2,b) and cross(pp3,c)
 end
 
+
+local baycentricCoord = function(p,p1,p2,p3)
+    local w1 = 0
+    local w2 = 0
+    local w3 = 0
+    local x,y = p.x,p.y
+    w2 = (x*(p1.y-p3.y) + y*(p3.x-p1.x) + (p1.x*p3.y - p3.x*p1.y))/( p2.x*(p1.y-p3.y) + p2.y*(p3.x-p1.x) + (p1.x*p3.y - p3.x*p1.y))
+    w3 = (x*(p1.y-p2.y) + y*(p2.x-p1.x) + (p1.x*p2.y - p2.x*p1.y))/( p3.x*(p1.y-p2.y) + p3.y*(p2.x-p1.x) + (p1.x*p2.y - p2.x*p1.y))
+    w1 = 1-w2-w3
+    return w1,w2,w3
+end
+
 --get boundingbox of a triangle
 local getBoundingBox = function(p1,p2,p3)
     local xMin = math.min(p1.x,p2.x,p3.x)
@@ -59,6 +71,7 @@ end
 function DrawHelper.SetPixel(self, grid_x, grid_y,color)
     PixelRate = PixelRate + 1
     -- x,y : left-up corner of the target block
+    grid_x, grid_y = (grid_x - grid_x%1), (grid_y - grid_y % 1)
     local padding = 0--self.BlockSize*.2
     local wh = self.BlockSize - 2 * padding
     local x = (grid_x-1) * self.BlockSize+padding
@@ -125,6 +138,32 @@ function DrawHelper.DrawTriangle(self,p1,p2,p3,color)
     end
 end
 
+--[[
+    data = {
+        objVerts = {},
+        normal = {VEC3(),...},
+        uv = {VEC2(),...},
+        verts = {num,...}
+    }
+]]
+function DrawHelper.DrawTriangle_Interpolate(self,data,shaderFunc)
+    local objVerts = data.objVerts
+    local vIndice = data.verts
+    local uvIndice = data.uvs
+    local nIndice = data.uv
+    local p1,p2,p3 = data[vIndice[1]],data[vIndice[2]],data[vIndice[3]]
+    local bx,by,bw,bh = getBoundingBox(p1,p2,p3)
+    
+    for x=bx,bx+bw do
+        for y=by,by+bh do
+            if isInTriangle(VEC2(x,y),p1,p2,p3)then
+                local w1,w2,w3 = baycentricCoord(p1,p2,p3,VEC2(x,y))
+                self:SetPixel(x,y,shaderFunc({}))
+            end
+        end
+    end
+end
+
 function DrawHelper.DrawGrid(self)
     for ix=1,self.Width do
         love.graphics.line()
@@ -136,18 +175,19 @@ function DrawHelper.DrawGrid(self)
 end
 
 function DrawHelper._debugDraw(self)
-    -- for x=1,self.Width do
-    --     for y = 1,self.Height do
-    --         --if x==y then
-    --             local uv = VEC2(x/self.Width,y/self.Height)
-    --             uv = uv*10
-    --             local uvx = uv.x - math.floor(uv.x)
-    --             local uvy = uv.y - math.floor(uv.y)
-    --             self:SetPixel(x,y,{uvx,uvy,0})
-    --         --end
-    --     end
-    -- end
-    self:DrawTriangle(VEC2(10,10),VEC2(50,10),VEC2(10,50),{1,0,0,1})
+    local p1,p2,p3 = VEC2(90,10), VEC2(150,10), VEC2(120,70)
+    local bx,by,bw,bh = getBoundingBox(p1,p2,p3)
+    local c1,c2,c3 = VEC3(1,0,0),VEC3(0,1,0),VEC3(0,0,1)
+
+    for x=bx,bx+bw do
+        for y=by,by+bh do
+            if isInTriangle(VEC2(x,y),p1,p2,p3)then
+                local w1,w2,w3 = baycentricCoord(VEC2(x,y),p1,p2,p3)
+                local color = w1*c1 + w2*c2 + w3*c3
+                self:SetPixel(x,y,color or {1,1,1,1})
+            end
+        end
+    end
 end
 
 function DrawHelper.BeginDraw(self)

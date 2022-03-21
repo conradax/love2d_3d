@@ -35,7 +35,7 @@ function love.load()
     local modelPath = "testCube2.obj"--"KANADE.OBJ"-- 
     MODEL = OH:loadOBJ(modelPath)
 
-    CANVAS = Draw:new(3)
+    CANVAS = Draw:new(5)
     Init(CANVAS.Width, CANVAS.Height)
 end
 
@@ -47,6 +47,7 @@ function love.update(dt)
     local mvp = MTX_MVP(MODEL.Matrix_Model2World,CAMERA)
 
     CANVAS:BeginDraw()
+    CANVAS:_debugDraw()
     local objData = MODEL.OBJData
     local objVerts = MODEL.OBJData.vertices
     for _,face in ipairs(objData.faces) do
@@ -64,7 +65,7 @@ function love.update(dt)
         verts = CalcFace(verts,mvp)
         if verts ~= nil then
             local p1,p2,p3 = verts[1],verts[2],verts[3]
-            CANVAS:DrawTriangle(p1,p2,p3,{1,1,1,1})
+            --CANVAS:DrawTriangle_Interpolate({objVerts=objVerts, normal=faceNormalIndex,uv=faceUVIndex,verts=faceVertIndex})
         end
     end
     CANVAS:EndDraw()
