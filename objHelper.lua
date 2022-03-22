@@ -7,9 +7,9 @@ local META = {
 
 
 
-function OBJHelper.loadOBJ(self,path)
+function OBJHelper.loadOBJ(self,path,settings)
     local o = setmetatable({},META)
-    o.OBJData = OBJ.loadObj(path)
+    o.OBJData = OBJ.loadObj(path,settings)
     --error(DeepPrint(o.OBJData))
     o.Vertices = {} -- store vertex position in VEC3
     o.Faces = {} -- store faces

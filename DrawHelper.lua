@@ -36,10 +36,10 @@ end
 
 --get boundingbox of a triangle
 local getBoundingBox = function(p1,p2,p3)
-    local xMin = math.min(p1.x,p2.x,p3.x)
-    local xMax = math.max(p1.x,p2.x,p3.x)
-    local yMin = math.min(p1.y,p2.y,p3.y)
-    local yMax = math.max(p1.y,p2.y,p3.y)
+    local xMin = math.floor(math.min(p1.x,p2.x,p3.x))
+    local xMax = math.floor(math.max(p1.x,p2.x,p3.x))
+    local yMin = math.floor(math.min(p1.y,p2.y,p3.y))
+    local yMax = math.floor(math.max(p1.y,p2.y,p3.y))
     return xMin,yMin,xMax-xMin,yMax-yMin
 end
 
@@ -49,11 +49,12 @@ end
 
 function DrawHelper.new(self, blockSize)
     local o = setmetatable({},Meta)
-    o:SetDimension(screenW,screenH)
+
     o.BlockSize = blockSize
     o.Width = math.ceil(screenW/blockSize)
     o.Height = math.ceil(screenH/blockSize)
-    
+    o:SetDimension(screenW,screenH)
+
     return o
 end
 
@@ -62,6 +63,8 @@ function DrawHelper.SetDimension(self, width, height)
         --copy from old canvas to new canvas
     else
         self.canvas = love.graphics.newCanvas(width,height)
+        self.Matrix_Clip2Screen = MTX_Clip2Screen(width,height)
+        self:ClearDepth()
         print("new canvas created")
     end
     return self.canvas
@@ -73,7 +76,7 @@ function DrawHelper.SetPixel(self, grid_x, grid_y,color)
     -- x,y : left-up corner of the target block
     grid_x, grid_y = (grid_x - grid_x%1), (grid_y - grid_y % 1)
     local padding = 0--self.BlockSize*.2
-    local wh = self.BlockSize - 2 * padding
+    local wh = self.BlockSize-- - 2 * padding
     local x = (grid_x-1) * self.BlockSize+padding
     local y = (grid_y-1) * self.BlockSize+padding
 
@@ -138,27 +141,51 @@ function DrawHelper.DrawTriangle(self,p1,p2,p3,color)
     end
 end
 
---[[
-    data = {
-        objVerts = {},
-        normal = {VEC3(),...},
-        uv = {VEC2(),...},
-        verts = {num,...}
-    }
-]]
-function DrawHelper.DrawTriangle_Interpolate(self,data,shaderFunc)
-    local objVerts = data.objVerts
-    local vIndice = data.verts
-    local uvIndice = data.uvs
-    local nIndice = data.uv
-    local p1,p2,p3 = data[vIndice[1]],data[vIndice[2]],data[vIndice[3]]
-    local bx,by,bw,bh = getBoundingBox(p1,p2,p3)
-    
-    for x=bx,bx+bw do
-        for y=by,by+bh do
-            if isInTriangle(VEC2(x,y),p1,p2,p3)then
-                local w1,w2,w3 = baycentricCoord(p1,p2,p3,VEC2(x,y))
-                self:SetPixel(x,y,shaderFunc({}))
+function DrawHelper.DrawTriangle_Interpolate(self,mvp,face,objData,fragShader)
+    local vertices = {}
+    local normals = {}
+    local uv = {}
+    for _,data in ipairs(face.data) do
+        vertices[#vertices+1] = objData.vertices[data.vertex_index]
+        normals[#normals+1] = objData.normals[data.normal_index]
+        uv[#uv+1] = objData.uvs[data.uv_index]
+    end
+    local screen_space_vertices, ndc_coords = CalcFace(vertices,mvp)
+    if screen_space_vertices ~= nil then
+        -- if not clipped, draw triangle
+        local p1,p2,p3 = screen_space_vertices[1], screen_space_vertices[2], screen_space_vertices[3]
+        local bx,by,bw,bh = getBoundingBox(p1,p2,p3)
+        for x=bx,bx+bw do
+            --x = math.floor(x)
+            for y=by,by+bh do
+                --y = math.floor(y)
+                local w1,w2,w3 = baycentricCoord(VEC2(x,y),p1,p2,p3)
+                if w1-0.00000000000000001>0.00000000000000001 and w2-0.00000000000000001>0.0000000000001 and w3-0.00000000000000001>0.00000000000000001 then
+                    --local xx,yy = math.ceil(x), math.ceil(y)-- x and y are not integer, i need a integer to access the depth buffer
+                    local depth = w1*p1.z + w2*p2.z + w3*p3.z
+                    --print("depth="..depth)
+                    local dbf = self.DepthBuffer
+                    --if dbf[x][y]==nil then print("invalid index on depth buffer:"..x..','..y,'max:'..#self.DepthBuffer..','..#self.DepthBuffer[1]) end
+                    if dbf[x] == nil or dbf[x][y] == nil then return end
+                    if depth - self.DepthBuffer[x][y]> 0.00000001 then
+                        --print("depth test failed depth="..depth.." buffer="..self.DepthBuffer[x][y])
+                        return
+                    else
+                        self.DepthBuffer[x][y] = depth
+                        local fragParam = {
+                            vertices = vertices,
+                            normals=normals,
+                            uv = uv,
+                            weights={w1,w2,w3},
+                            coords={x,y},
+                            screen_space_vertices = screen_space_vertices,
+                            ndc_coords = ndc_coords,
+                            objData = objData
+                        }
+                        local c = fragShader(x,y,fragParam)
+                        self:SetPixel(x,y,c)
+                    end
+                end
             end
         end
     end
@@ -193,10 +220,22 @@ end
 function DrawHelper.BeginDraw(self)
     love.graphics.setCanvas(self.canvas)
     love.graphics.clear()
+    self:ClearDepth()
 end
 
 function DrawHelper.EndDraw(self)
     return love.graphics.setCanvas()
+end
+
+function DrawHelper.ClearDepth(self, value)
+    value = value or 999
+        self.DepthBuffer = {}
+        for x=1,self.Width do
+            self.DepthBuffer[x] = {}
+            for y=1,self.Height do
+                self.DepthBuffer[x][y] = value
+            end
+        end
 end
 
 return DrawHelper
