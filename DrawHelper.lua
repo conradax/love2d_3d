@@ -5,7 +5,7 @@ local DrawHelper = {}
 local Meta = {__index = DrawHelper}
 
 
--- test
+-- determine how many colums and rows in DrawHelper.new
 local screenW, screenH = love.window.getMode()
 
 --wrapper for vec2 cross
@@ -41,10 +41,6 @@ local getBoundingBox = function(p1,p2,p3)
     local yMin = math.floor(math.min(p1.y,p2.y,p3.y))
     local yMax = math.floor(math.max(p1.y,p2.y,p3.y))
     return xMin,yMin,xMax-xMin,yMax-yMin
-end
-
-local lerp = function()
-
 end
 
 function DrawHelper.new(self, blockSize)
@@ -89,6 +85,26 @@ function DrawHelper.GetPixel(self,x,y)
     return error("not implemented yet")
 end
 
+function DrawHelper.DrawTriangle2D(self,p1,p2,p3,faceID)
+    DRAW_TRIANGLE_2D = DRAW_TRIANGLE_2D + 1
+    self:DrawLine(p1,p2)
+    self:DrawLine(p2,p3)
+    self:DrawLine(p3,p1)
+    local offset = VEC3(10,10,0)
+    if p1.z ~= nil then
+        local pp1 = p1*self.BlockSize + offset
+        local pp2 = p2*self.BlockSize + offset
+        local pp3 = p3*self.BlockSize + offset
+        local center = (p1+p2+p3)/3
+        love.graphics.print(string.format("%.3f",p1.z),pp1.x,pp1.y)
+        love.graphics.print(string.format("%.3f",p2.z),pp2.x,pp2.y)
+        love.graphics.print(string.format("%.3f",p3.z),pp3.x,pp3.y)
+        love.graphics.print('f'..faceID,center.x,center.y)
+    else
+        --print("z is nil")
+    end
+end
+
 function DrawHelper.DrawLine(self,p1,p2,color)
     color = color or {1,1,1,1}
     if p1.x>p2.x then p1,p2 = p2,p1 end -- p2.x must bigger then p1.x
@@ -112,9 +128,6 @@ function DrawHelper.DrawLine(self,p1,p2,color)
 end
 end
 
-function DrawHelper.DrawLine3D(p1,p2,color)
-
-end
 function DrawHelper.DrawPolygon(color,...)
     -- how to deal with UV NORMAL?
     -- local bound = CalcBoundingBox(...)
@@ -141,7 +154,7 @@ function DrawHelper.DrawTriangle(self,p1,p2,p3,color)
     end
 end
 
-function DrawHelper.DrawTriangle_Interpolate(self,mvp,face,objData,fragShader)
+function DrawHelper.DrawTriangle_Interpolate(self,mvp,face,objData,fragShader,faceID)
     local vertices = {}
     local normals = {}
     local uv = {}
@@ -150,28 +163,25 @@ function DrawHelper.DrawTriangle_Interpolate(self,mvp,face,objData,fragShader)
         normals[#normals+1] = objData.normals[data.normal_index]
         uv[#uv+1] = objData.uvs[data.uv_index]
     end
-    local screen_space_vertices, ndc_coords = CalcFace(vertices,mvp)
+    local screen_space_vertices, ndc = CalcFace(vertices,mvp)
     if screen_space_vertices ~= nil then
         -- if not clipped, draw triangle
         local p1,p2,p3 = screen_space_vertices[1], screen_space_vertices[2], screen_space_vertices[3]
         local bx,by,bw,bh = getBoundingBox(p1,p2,p3)
+        --self:DrawTriangle2D(p1,p2,p3,faceID) -- for testing
         for x=bx,bx+bw do
-            --x = math.floor(x)
             for y=by,by+bh do
-                --y = math.floor(y)
                 local w1,w2,w3 = baycentricCoord(VEC2(x,y),p1,p2,p3)
-                if w1-0.00000000000000001>0.00000000000000001 and w2-0.00000000000000001>0.0000000000001 and w3-0.00000000000000001>0.00000000000000001 then
-                    --local xx,yy = math.ceil(x), math.ceil(y)-- x and y are not integer, i need a integer to access the depth buffer
+                if w1>=0 and w2>=0 and w3>=0 then
                     local depth = w1*p1.z + w2*p2.z + w3*p3.z
-                    --print("depth="..depth)
                     local dbf = self.DepthBuffer
                     --if dbf[x][y]==nil then print("invalid index on depth buffer:"..x..','..y,'max:'..#self.DepthBuffer..','..#self.DepthBuffer[1]) end
-                    if dbf[x] == nil or dbf[x][y] == nil then return end
-                    if depth - self.DepthBuffer[x][y]> 0.00000001 then
+                    --if dbf[x] == nil or dbf[x][y] == nil then return end
+                    if depth >= dbf[x][y] then
                         --print("depth test failed depth="..depth.." buffer="..self.DepthBuffer[x][y])
-                        return
+                        --return
                     else
-                        self.DepthBuffer[x][y] = depth
+                        dbf[x][y] = depth
                         local fragParam = {
                             vertices = vertices,
                             normals=normals,
@@ -179,7 +189,7 @@ function DrawHelper.DrawTriangle_Interpolate(self,mvp,face,objData,fragShader)
                             weights={w1,w2,w3},
                             coords={x,y},
                             screen_space_vertices = screen_space_vertices,
-                            ndc_coords = ndc_coords,
+                            ndc = ndc,
                             objData = objData
                         }
                         local c = fragShader(x,y,fragParam)
@@ -188,16 +198,6 @@ function DrawHelper.DrawTriangle_Interpolate(self,mvp,face,objData,fragShader)
                 end
             end
         end
-    end
-end
-
-function DrawHelper.DrawGrid(self)
-    for ix=1,self.Width do
-        love.graphics.line()
-        for iy = 1, self.Height do
-            love.graphics.line()
-        end
-        
     end
 end
 
@@ -219,8 +219,9 @@ end
 
 function DrawHelper.BeginDraw(self)
     love.graphics.setCanvas(self.canvas)
-    love.graphics.clear()
+    love.graphics.clear({.3,.2,.1,1})
     self:ClearDepth()
+    DRAW_TRIANGLE_2D = 0
 end
 
 function DrawHelper.EndDraw(self)
@@ -228,7 +229,7 @@ function DrawHelper.EndDraw(self)
 end
 
 function DrawHelper.ClearDepth(self, value)
-    value = value or 999
+    value = value or 1
         self.DepthBuffer = {}
         for x=1,self.Width do
             self.DepthBuffer[x] = {}

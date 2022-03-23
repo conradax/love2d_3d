@@ -5,7 +5,8 @@ Draw = require("DrawHelper")
 local fragShader = require("fragShader")
 
 PixelRate = 0
-MODELSCALE = 10
+DRAW_TRIANGLE_2D = 0
+MODELSCALE = 50
 
 function MTX_MVP(model2world,cameraInfo)
     local mtx_model2world = model2world--MTX_Model2World(VEC3(0,0,10),VEC3(0,0,0))
@@ -27,35 +28,37 @@ function Init(screenW, screenH)
         near = 40,
         far = 170,
         aspect = screenW/screenH, --near plane's width / height
-        fovY = PI/16
+        fovY = PI/4
     }
 end
 
 
 function love.load()
     -- must be a triangulated mesh
-    local modelPath = "kanade2.obj" --"testplane.obj"
+    local modelPath = "kanade2.obj" --"testplane.obj" --"testCube.obj"
     MODEL = OH:loadOBJ(modelPath,{scale=MODELSCALE})--i dont know why, but the scale also applied to uv coord, which needs a counter division
 
-    MODEL.OBJData.texture = love.image.newImageData("kanade_tex.png")--hacking for texture
+    MODEL.OBJData.texture = love.image.newImageData("kanade_tex.png")
 
-    CANVAS = Draw:new(1)
+    CANVAS = Draw:new(2)
     Init(CANVAS.Width, CANVAS.Height)
 end
 
 function love.update(dt)
     PixelRate = 0
-    HandleInput(dt*10)
+    HandleInput(dt)
 
-    MODEL:SetRotation(MODEL.Rotation+VEC3(0,PI * dt /9,0))
+    MODEL:SetRotation(MODEL.Rotation+VEC3(0,PI * dt /36,0))
     local mvp = MTX_MVP(MODEL.Matrix_Model2World,CAMERA)
 
     CANVAS:BeginDraw()
-    CANVAS:_debugDraw()
+    --CANVAS:_debugDraw()
     local objData = MODEL.OBJData
     for _,face in ipairs(objData.faces) do
-        CANVAS:DrawTriangle_Interpolate(mvp,face,objData,fragShader)
+        CANVAS:DrawTriangle_Interpolate(mvp,face,objData,fragShader,_)
+        
     end
+    DrawAxis(mvp)
     CANVAS:EndDraw()
 
 end
@@ -87,10 +90,10 @@ end
 -- { scancode = function }
 -- https://love2d.org/wiki/Scancode
 local _keys = {
-    a = function(dt) CAMERA.position = CAMERA.position + VEC3(-1,0,0)*dt end,
-    d = function(dt) CAMERA.position = CAMERA.position + VEC3(1,0,0)*dt end,
-    w = function(dt) CAMERA.position = CAMERA.position + VEC3(0,0,1)*dt end,
-    s = function(dt) CAMERA.position = CAMERA.position + VEC3(0,0,-1)*dt end,
+    a = function(dt) CAMERA.position = CAMERA.position + VEC3(-10,0,0)*dt end,
+    d = function(dt) CAMERA.position = CAMERA.position + VEC3(10,0,0)*dt end,
+    w = function(dt) CAMERA.position = CAMERA.position + VEC3(0,0,10)*dt end,
+    s = function(dt) CAMERA.position = CAMERA.position + VEC3(0,0,-10)*dt end,
     --p = function(dt) end,
     right=function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(0,-PI*dt,0)) end,
     left = function(dt) MODEL:SetRotation(MODEL.Rotation + VEC3(0,PI*dt,0)) end,
@@ -114,18 +117,6 @@ function love.keyreleased(key)
     end
 end
 
-function FlatTable2(...)
-    local ret = {}
-    local index = 1
-    for k,v in ipairs(...) do
-        for kk,vv in ipairs(v) do
-            ret[index] = vv
-            index = index + 1
-        end
-    end
-    return ret
-end
-
 function PrintDebugText()
     local debug_text = string.format(
         "FPS: %d\nCamera Info:\n%s\nPixelRate: %d\nFace count:%d",
@@ -137,24 +128,15 @@ function PrintDebugText()
         love.graphics.print(debug_text)
 end
 
-function DrawFace(model_space_face,mvp)
-    
-    local verts,smallZ = CalcFace(model_space_face,mvp)
-    --verts = FlatTable2(love.math.triangulate(verts))
-    if verts ~= nil then
-        love.graphics.polygon('line',verts)
-    end
-end
-
 -- returns nil if any vertex clipped
 function CalcFace(model_space_face,mvp)
     local verts = {}
-    local ndc_coords = {}
+    local ndc = {}
     for k,vertex in ipairs(model_space_face) do
-        verts[k],ndc_coords[k] = Model2Screen(vertex,mvp)
+        verts[k], ndc[k] = Model2Screen(vertex,mvp)
         if verts[k] == nil then return end --vertex clipped
     end
-    return verts,ndc_coords
+    return verts,ndc
 end
 
 
@@ -164,7 +146,7 @@ function Model2Screen(vert,mvp)
     local clip_space_p = HomogeneousDivision(mvp * P(vert.x,vert.y,vert.z))
     if clip_space_p ~= nil then
         if clip_space_p[3][1] <-1.01 or clip_space_p[3][1]>1.01 then --clipping
-            --print("vertex clipped\n"..DeepPrint(clip_space_p))
+            print("vertex clipped\n"..DeepPrint(clip_space_p))
             return
         end
     end
@@ -183,28 +165,28 @@ function DrawLine(p1,p2,mvp)
 end
 
 function DrawAxis(mvp)
-    --x
-    -- love.graphics.setColor(1,0,0,1)
-    -- DrawLine(VEC3(-1,0,0),VEC3(1,0,0),mvp)
-    -- DrawLine(VEC3(1,0,0),VEC3(.9,0,.1),mvp)
-    -- DrawLine(VEC3(1,0,0),VEC3(.9,0,-.1),mvp)
-    local x1 = Model2Screen(VEC3(-1,0,0),mvp)
-    local x2 = Model2Screen(VEC3(1,0,0),mvp)
-    
-    if (x1 ~= nil) and (x2 ~= nil) then
-        x1 = VEC2(x1[1],x1[2])
-        x2 = VEC2(x2[1],x2[2])
-        CANVAS:DrawLine(x1,x2,{1,0,0,1})
+    love.graphics.setColor(1,1,1,1)
+    local len = 1
+    local origin = Model2Screen(VEC3(0,0,0),mvp)
+    local x = Model2Screen(VEC3(len,0,0),mvp)
+    local y = Model2Screen(VEC3(0,len,0),mvp)
+    local z = Model2Screen(VEC3(0,0,len),mvp)
+
+
+
+    if origin ~= nil then
+        origin = VEC2(origin[1],origin[2])
+        if x ~= nil then
+            x = VEC2(x[1],x[2])
+            CANVAS:DrawLine(x,origin,{1,0,0,1})
+        end
+        if y ~= nil then
+            y = VEC2(y[1],y[2])
+            CANVAS:DrawLine(y,origin,{0,1,0,1})
+        end
+        if z ~= nil then
+            z = VEC2(z[1],z[2])
+            CANVAS:DrawLine(z,origin,{0,0,1,1})
+        end
     end
-    
-    --y
-    -- love.graphics.setColor(0,1,0,1)
-    -- DrawLine(VEC3(0,-1,0),VEC3(0,1,0),mvp)
-    -- DrawLine(VEC3(0,1,0),VEC3(.1,.9,0),mvp)
-    -- DrawLine(VEC3(0,1,0),VEC3(-.1,.9,0),mvp)
-    --z
-    -- love.graphics.setColor(0,0,1,1)
-    -- DrawLine(VEC3(0,0,-1),VEC3(0,0,1),mvp)
-    -- DrawLine(VEC3(0,0,1),VEC3(.1,0,.9),mvp)
-    -- DrawLine(VEC3(0,0,1),VEC3(-.1,0,.9),mvp)
 end
