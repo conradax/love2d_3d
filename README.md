@@ -13,3 +13,9 @@ Therefore, it has bad performance.
 
 ## Why
 Just for fun. I was learning computer graphics, and decided to make this.
+
+## Notice
+* Camera is intented to facing z+ in view space.
+* Left hand coordinate system
+* Rotation is counter-clock-wise while looking toward axis' positive direction.
+* There might be some bugs with matrices.
