@@ -54,11 +54,11 @@ return function(x,y,param)
     local weights = param.weights
     local vertices = param.vertices -- model space
     local tex = param.objData.texture
-    local ndc = mix(param.weights,param.ndc)
-    ndc = (ndc+1)/2
+    -- local ndc = mix(param.weights,param.ndc)
+    -- ndc = (ndc+1)/2
 
     local dt = love.timer.getDelta()
-    timer = timer + dt*0.00001
+    timer = timer + dt*0.0001
     local xx = SIN(timer)*radius
     local zz = COS(timer)*radius
     light = VEC3(xx,30,zz)

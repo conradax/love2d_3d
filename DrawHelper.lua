@@ -201,6 +201,58 @@ function DrawHelper.DrawTriangle_Interpolate(self,mvp,face,objData,fragShader,fa
     end
 end
 
+-- using index to access pre-computed vertex
+function DrawHelper.DrawTriangle_Interpolate2(self,mvp,face,objData,fragShader,faceID)
+    local vertices = {}
+    local normals = {}
+    local uv = {}
+    local screen_space_vertices = {}
+    local ndc = {}
+    for _,data in ipairs(face.data) do
+        if objData.screen_space_vertices[data.vertex_index] == nil then return end
+        vertices[#vertices+1] = objData.vertices[data.vertex_index]
+        normals[#normals+1] = objData.normals[data.normal_index]
+        uv[#uv+1] = objData.uvs[data.uv_index]
+        screen_space_vertices[#screen_space_vertices+1] = objData.screen_space_vertices[data.vertex_index]
+        ndc[#ndc+1] = objData.ndc[data.vertex_index]
+    end
+    if screen_space_vertices ~= nil then
+        -- if not clipped, draw triangle
+        local p1,p2,p3 = screen_space_vertices[1], screen_space_vertices[2], screen_space_vertices[3]
+        local bx,by,bw,bh = getBoundingBox(p1,p2,p3)
+        --self:DrawTriangle2D(p1,p2,p3,faceID) -- for testing
+        for x=bx,bx+bw do
+            for y=by,by+bh do
+                local w1,w2,w3 = baycentricCoord(VEC2(x,y),p1,p2,p3)
+                if w1>=0 and w2>=0 and w3>=0 then
+                    local depth = w1*p1.z + w2*p2.z + w3*p3.z
+                    local dbf = self.DepthBuffer
+                    --if dbf[x][y]==nil then print("invalid index on depth buffer:"..x..','..y,'max:'..#self.DepthBuffer..','..#self.DepthBuffer[1]) end
+                    --if dbf[x] == nil or dbf[x][y] == nil then return end
+                    if depth >= dbf[x][y] then
+                        --print("depth test failed depth="..depth.." buffer="..self.DepthBuffer[x][y])
+                        --return
+                    else
+                        dbf[x][y] = depth
+                        local fragParam = {
+                            vertices = vertices,
+                            normals=normals,
+                            uv = uv,
+                            weights={w1,w2,w3},
+                            coords={x,y},
+                            screen_space_vertices = screen_space_vertices,
+                            ndc = ndc,
+                            objData = objData
+                        }
+                        local c = fragShader(x,y,fragParam)
+                        self:SetPixel(x,y,c)
+                    end
+                end
+            end
+        end
+    end
+end
+
 function DrawHelper._debugDraw(self)
     local p1,p2,p3 = VEC2(90,10), VEC2(150,10), VEC2(120,70)
     local bx,by,bw,bh = getBoundingBox(p1,p2,p3)

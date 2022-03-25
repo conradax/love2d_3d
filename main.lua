@@ -22,7 +22,7 @@ function Init(screenW, screenH)
     --ScreenW, ScreenH = love.window.getMode()
     Clip2Screen = MTX_Clip2Screen(screenW,screenH)
     CAMERA = {
-        position = VEC3(0,0,-50),
+        position = VEC3(0,0,-100),
         rotation = VEC3(0,0,0),
         type = 'persp',--'ortho',
         near = 40,
@@ -39,6 +39,8 @@ function love.load()
     MODEL = OH:loadOBJ(modelPath,{scale=MODELSCALE})--i dont know why, but the scale also applied to uv coord, which needs a counter division
 
     MODEL.OBJData.texture = love.image.newImageData("kanade_tex.png")
+    MODEL.OBJData.screen_space_vertices = {}
+    MODEL.OBJData.ndc = {}
 
     CANVAS = Draw:new(2)
     Init(CANVAS.Width, CANVAS.Height)
@@ -51,11 +53,19 @@ function love.update(dt)
     MODEL:SetRotation(MODEL.Rotation+VEC3(0,PI * dt /36,0))
     local mvp = MTX_MVP(MODEL.Matrix_Model2World,CAMERA)
 
+    MODEL.OBJData.screen_space_vertices = {}
+    MODEL.OBJData.ndc = {}
+    for index,vertex in ipairs(MODEL.OBJData.vertices) do
+        local ssv, ndc = Model2Screen(vertex,mvp)
+        MODEL.OBJData.screen_space_vertices[index] = ssv
+        MODEL.OBJData.ndc[index] = ndc
+    end
+
     CANVAS:BeginDraw()
     --CANVAS:_debugDraw()
     local objData = MODEL.OBJData
     for _,face in ipairs(objData.faces) do
-        CANVAS:DrawTriangle_Interpolate(mvp,face,objData,fragShader,_)
+        CANVAS:DrawTriangle_Interpolate2(mvp,face,objData,fragShader,_)
         
     end
     DrawAxis(mvp)
